@@ -1,0 +1,101 @@
+#!/bin/bash
+# Simple Bash script to turn wireless card into monitor mode using LORCON2
+#
+# Copyright (C) 2012 Yahya Sjahrony <yysjryysjr AT gmail DOT com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+''':'
+if [[ $(id -u) != 0 ]]
+then
+    echo "This needs to be run as root (or with sudo)"
+    exit 1
+fi
+
+[[ ! -x $(command -v airmon-zc 2>&1) ]] && {
+    echo "airmon-zc not found"
+    exit 1
+}
+
+usage(){
+    printf "usage: $(basename $0) <start|stop> <interface> [channel or frequency]\n\n"
+    exit
+}
+
+input="$1"
+shift
+case "${input}" in
+    start) 
+        exec python -O -u "$0" "$@"
+        exit
+        ;;
+    stop) 
+        [[ -z "$1" ]] && usage
+        printf "To stop monitor interface, please run: \nairmon-zc stop <interface>\n\n"
+        exit
+        ;;
+    -h|--help|*) 
+        usage
+        ;;
+esac
+
+' '''
+import sys
+import subprocess
+
+try:
+    import PyLorcon2
+except ImportError, e:
+    print("PyLorcon2 module not found, http://code.google.com/p/pylorcon2")
+    sys.exit(-1)  
+
+def usage():
+   subprocess.Popen(['bash', '%s'%sys.argv[0]]).wait()
+
+def main(argv=sys.argv):
+    channel = 10
+
+    if len(sys.argv[1:]) not in (1,2):
+        sys.exit(usage())
+
+    card = sys.argv[1]
+    try:
+        driver, description = PyLorcon2.auto_driver(card)
+    except PyLorcon2.Lorcon2Exception, e:
+        print (e)
+        sys.exit(-1)
+
+    try:
+        ctx = PyLorcon2.Context(card)
+        ctx.open_injmon()
+    except PyLorcon2.Lorcon2Exception, e:
+        print(e)
+        sys.exit(-1)
+
+    for arg in sys.argv[2:]:
+        try:
+            channel = int(arg)
+        except:
+            channel = None
+    try:
+        ctx.set_channel(channel) 
+    except (PyLorcon2.Lorcon2Exception, Exception), e:
+        print("Could not set channel: %s" % e)
+ 
+    print("\n%s monitor mode enabled for %s on %s through LORCON2\n" % (driver, card, ctx.get_capiface()))
+    ctx.close()
+    sys.exit(0)
+
+if __name__ == '__main__':
+    main(sys.argv)
